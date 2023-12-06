@@ -16,7 +16,7 @@ public class Role {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    private String role;
+    private RoleType role;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
