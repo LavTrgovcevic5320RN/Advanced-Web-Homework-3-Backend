@@ -1,101 +1,76 @@
 package com.raf.nwpdomaci3.services;
 
-import com.raf.nwpdomaci3.domain.dto.user.UserCreateDto;
-import com.raf.nwpdomaci3.domain.dto.user.UserDto;
-import com.raf.nwpdomaci3.domain.dto.user.UserUpdateDto;
-import com.raf.nwpdomaci3.domain.entities.Role;
-import com.raf.nwpdomaci3.domain.entities.RoleType;
-import com.raf.nwpdomaci3.domain.entities.User;
-import com.raf.nwpdomaci3.domain.mapper.UserMapper;
-import com.raf.nwpdomaci3.repository.RoleRepository;
-import com.raf.nwpdomaci3.repository.UserRepository;
-import com.raf.nwpdomaci3.utils.PermissionUtils;
-import org.springframework.http.HttpStatus;
+import com.raf.nwpdomaci3.model.User;
+import com.raf.nwpdomaci3.repositories.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class UserService implements UserDetailsService {
-    private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
+    private UserRepository userRepository;
+//    private PermisijaRepository permisijaRepository;
 
-    public UserService(UserRepository userRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+    @Autowired
+    public UserService(UserRepository userRepository ) {
         this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
+//        this.permisijaRepository = permisijaRepository;
     }
 
-    public UserDto createUser(UserCreateDto userCreateDto){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_CREATE))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
+    public UserDetails loadUserByEmail(String email) throws UsernameNotFoundException {
+        User myUser = this.userRepository.findByEmail(email);
+        if(myUser == null) {
+            throw new UsernameNotFoundException("Email "+email+" not found");
+        }
 
-        List<Role> roles = roleRepository.findAllByRoleIn(userCreateDto.getUserRoles().stream().map(RoleType::valueOf).collect(Collectors.toList()));
-
-        User user = UserMapper.INSTANCE.userCreateDtoToUser(userCreateDto);
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setRoles(roles);
-        return UserMapper.INSTANCE.userToUserDto(user);
+        return new org.springframework.security.core.userdetails.User(myUser.getEmail(), myUser.getPassword(), myUser.getPermisije());
     }
 
-    public List<UserDto> findAllUsers(){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_READ))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
+    public User dohvatiPoEmailu(String email) throws Exception{
+        User user = this.userRepository.findByEmail(email);
 
-        return userRepository.findAll().stream().map(UserMapper.INSTANCE::userToUserDto).collect(Collectors.toList());
-    }
-
-    public UserDto findUserById(Long id){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_READ))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
-
-        Optional<User> user = userRepository.findById(id);
-        return user.map(UserMapper.INSTANCE::userToUserDto).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "invalid user id"));
-    }
-
-    public UserDto findUserByEmail(String email){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_READ))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
-
-        Optional<User> user = userRepository.findUserByEmail(email);
-        return user.map(UserMapper.INSTANCE::userToUserDto).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "invalid user email"));
-    }
-
-    public UserDto updateUserById(Long id, UserUpdateDto userUpdateDto){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_UPDATE))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
-
-        List<Role> roles = roleRepository.findAllByRoleIn(userUpdateDto.getUserRoles().stream().map(RoleType::valueOf).collect(Collectors.toList()));
-
-        User user = userRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "invalid id"));
-        user.setRoles(roles);
-
-        return UserMapper.INSTANCE.userToUserDto(userRepository.save(user));
-    }
-
-    public void deleteUserById(Long id){
-        if(!PermissionUtils.hasPermission(RoleType.CAN_DELETE))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, PermissionUtils.permissionMessage);
-
-        User user = userRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "invalid id"));
-        userRepository.delete(user);
+        if(user == null){
+            throw new Exception("Nema takvog emaila u bazi");
+        }
+        return user;
     }
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Optional<User> user = userRepository.findUserByEmail(email);
-        if(!user.isPresent())
-            throw new UsernameNotFoundException("Email " + email + " not found");
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        System.out.println("usao u loadUserByUsername");
+        User myUser = this.userRepository.findByEmail(username);
 
-        List<RoleType> roles = user.get().getRoles().stream().map(Role::getRole).collect(Collectors.toList());
-        return new org.springframework.security.core.userdetails.User(user.get().getEmail(), user.get().getPassword(), roles);
+
+        if(myUser == null) {
+            throw new UsernameNotFoundException("User name "+username+" not found");
+        }
+
+        return new org.springframework.security.core.userdetails.User(myUser.getUsername(), myUser.getPassword(), myUser.getPermisije());
     }
+
+    public List<User> findAll(){
+        return userRepository.findAll();
+    }
+
+    public Optional<User> findById(Long id){
+        return userRepository.findById(id);
+    }
+
+    public void deleteById(Long id){
+        userRepository.deleteById(id);
+    }
+    public User save(User user){
+        return userRepository.save(user);
+    }
+
+//    public List<Permisija> permisije(Long id){
+//        return permisijaRepository.findById(id);
+//    }
+
+
 }
